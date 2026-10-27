@@ -1,5 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch
-flask
 numpy
+flask
+streamlit
 matplotlib
+gunicorn
 pytest
