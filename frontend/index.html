@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAE Latent Space Visualizer</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1c2330; --muted: #5f6b7a; --line: #dfe3e8;
+    --accent: #2f5bea; --accent-ink: #ffffff; --warn: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12151b; --card: #1b2029; --ink: #e8ecf2; --muted: #98a3b3; --line: #2b3240; --accent: #6f8cff; --accent-ink: #0d1220; --warn: #ff8a80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px 8px; max-width: 1280px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 1280px; margin: 0 auto; padding: 12px 24px 40px; display: grid; gap: 16px; grid-template-columns: 340px minmax(300px, 1fr) minmax(360px, 520px); align-items: start; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr 1fr; } .latent { grid-column: 1 / -1; } }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; padding: 12px 16px 32px; } header { padding: 16px; } }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  button, label.btn {
+    font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px; cursor: pointer; min-width: 36px; text-align: center;
+  }
+  button:hover, label.btn:hover { border-color: var(--accent); }
+  button:focus-visible, label.btn:focus-within, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .sub { margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
+  canvas { display: block; border-radius: 8px; border: 1px solid var(--line); background: #000; }
+  canvas.px { image-rendering: pixelated; }
+  #draw { touch-action: none; cursor: crosshair; width: 100%; max-width: 308px; aspect-ratio: 1; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pair figure { margin: 0; }
+  .pair canvas { width: 100%; aspect-ratio: 1; }
+  figcaption { margin-top: 6px; font-size: 13px; color: var(--muted); text-align: center; }
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+  .metric { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .metric b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .metric span { font-size: 12px; color: var(--muted); }
+  .codes { margin-top: 12px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; word-break: break-word; }
+  .codes code { color: var(--ink); }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; }
+  #latent { width: 100%; aspect-ratio: 1; cursor: crosshair; background: var(--card); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .decoded { display: flex; gap: 12px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .decoded canvas { width: 84px; height: 84px; flex: none; }
+  #status { color: var(--warn); font-size: 13px; min-height: 18px; margin-top: 8px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VAE Latent Space Visualizer</h1>
+  <p id="modelinfo">Encode an MNIST digit into the latent space and decode it back.</p>
+</header>
+
+<main>
+  <section aria-labelledby="in-h">
+    <h2 id="in-h">1 · Input image</h2>
+    <div class="sub" style="margin-top:0">Pick an MNIST test digit</div>
+    <div class="row" id="digits"></div>
+    <div class="row" style="margin-top:6px"><button id="random" class="primary">Random digit</button></div>
+
+    <div class="sub">…or draw one</div>
+    <canvas id="draw" width="280" height="280" aria-label="Drawing canvas"></canvas>
+    <div class="row" style="margin-top:8px"><button id="clear">Clear</button></div>
+
+    <div class="sub">…or upload an image</div>
+    <label class="btn">Choose file<input id="file" type="file" accept="image/*" hidden></label>
+    <p class="hint">Dark digit on light paper is auto-inverted.</p>
+    <div id="status" role="status"></div>
+  </section>
+
+  <section aria-labelledby="out-h">
+    <h2 id="out-h">2 · Original vs reconstruction</h2>
+    <div class="pair">
+      <figure><canvas id="orig" class="px" width="28" height="28"></canvas><figcaption id="origcap">Original</figcaption></figure>
+      <figure><canvas id="recon" class="px" width="28" height="28"></canvas><figcaption>Reconstruction</figcaption></figure>
+    </div>
+    <label class="check"><input type="checkbox" id="sample"> Decode a random sample z ~ N(μ, σ²) instead of the mean</label>
+    <div class="metrics">
+      <div class="metric"><b id="m-rec">–</b><span>Reconstruction loss (BCE)</span></div>
+      <div class="metric"><b id="m-kl">–</b><span>KL divergence</span></div>
+      <div class="metric"><b id="m-tot">–</b><span>Total (neg. ELBO)</span></div>
+    </div>
+    <div class="codes" id="codes"></div>
+  </section>
+
+  <section class="latent" aria-labelledby="lat-h">
+    <h2 id="lat-h">3 · Latent space</h2>
+    <canvas id="latent" width="640" height="640" aria-label="Latent space scatter plot"></canvas>
+    <div class="legend" id="legend"></div>
+    <label class="check"><input type="checkbox" id="manifold"> Show decoded manifold behind the points</label>
+    <div class="decoded">
+      <canvas id="decoded" class="px" width="28" height="28"></canvas>
+      <div id="decodedcap">Click anywhere in the latent space to decode that point.</div>
+    </div>
+    <p class="hint" id="projnote"></p>
+  </section>
+</main>
+
+<script>
+const COLORS = ['#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7','#9c755f','#bab0ac'];
+const $ = id => document.getElementById(id);
+let latent = null;        // {points, labels}
+let manifold = null;      // {n, images, extent}
+let manifoldCanvas = null;
+let bounds = null;        // plot bounds {x0,x1,y0,y1}
+let current = null;       // {point, z, label}
+let currentPixels = null;
+let clicked = null;       // clicked latent point [x,y]
+let reqId = 0;
+
+async function api(path, body) {
+  const res = await fetch(path, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : undefined);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+function setStatus(msg) { $('status').textContent = msg || ''; }
+
+function paint(canvas, pixels) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(28, 28);
+  for (let i = 0; i < 784; i++) {
+    const v = Math.round(255 * Math.min(1, Math.max(0, pixels[i])));
+    img.data[4*i] = img.data[4*i+1] = img.data[4*i+2] = v; img.data[4*i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/* ---------- reconstruction ---------- */
+async function reconstruct(pixels, label) {
+  currentPixels = pixels;
+  paint($('orig'), pixels);
+  $('origcap').textContent = label == null ? 'Original (your input)' : `Original (digit ${label})`;
+  const id = ++reqId;
+  try {
+    const r = await api('/api/reconstruct', {pixels, sample: $('sample').checked});
+    if (id !== reqId) return;
+    setStatus('');
+    paint($('recon'), r.reconstruction);
+    $('m-rec').textContent = r.reconstruction_loss.toFixed(1);
+    $('m-kl').textContent = r.kl_divergence.toFixed(2);
+    $('m-tot').textContent = r.elbo_loss.toFixed(1);
+    const f = a => a.map(v => v.toFixed(2)).join(', ');
+    $('codes').innerHTML = `μ = <code>[${f(r.mu)}]</code><br>σ = <code>[${f(r.sigma)}]</code><br>z = <code>[${f(r.z)}]</code>`;
+    current = {point: r.point, label};
+    drawLatent();
+  } catch (e) { setStatus(e.message); }
+}
+
+/* ---------- latent plot ---------- */
+function toPx(p) {
+  const W = $('latent').width, H = $('latent').height, m = 24;
+  return [m + (p[0]-bounds.x0)/(bounds.x1-bounds.x0)*(W-2*m), H - m - (p[1]-bounds.y0)/(bounds.y1-bounds.y0)*(H-2*m)];
+}
+function fromPx(x, y) {
+  const W = $('latent').width, H = $('latent').height, m = 24;
+  return [bounds.x0 + (x-m)/(W-2*m)*(bounds.x1-bounds.x0), bounds.y0 + (H-m-y)/(H-2*m)*(bounds.y1-bounds.y0)];
+}
+function drawLatent() {
+  if (!latent) return;
+  const c = $('latent'), ctx = c.getContext('2d'), W = c.width, H = c.height, m = 24;
+  const css = getComputedStyle(document.documentElement);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = css.getPropertyValue('--card'); ctx.fillRect(0, 0, W, H);
+  if ($('manifold').checked && manifoldCanvas) {
+    ctx.globalAlpha = 0.55; ctx.imageSmoothingEnabled = true;
+    const [a, b] = toPx([manifold.extent[0], manifold.extent[3]]);
+    const [c2, d] = toPx([manifold.extent[1], manifold.extent[2]]);
+    ctx.drawImage(manifoldCanvas, a, b, c2 - a, d - b);
+    ctx.globalAlpha = 1;
+  }
+  // axes through origin
+  ctx.strokeStyle = css.getPropertyValue('--line'); ctx.lineWidth = 1;
+  const o = toPx([0, 0]);
+  ctx.beginPath(); ctx.moveTo(m, o[1]); ctx.lineTo(W-m, o[1]); ctx.moveTo(o[0], m); ctx.lineTo(o[0], H-m); ctx.stroke();
+  for (let i = 0; i < latent.points.length; i++) {
+    const [x, y] = toPx(latent.points[i]);
+    ctx.fillStyle = COLORS[latent.labels[i]];
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 6.2832); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (clicked) marker(ctx, toPx(clicked), 'diamond', css);
+  if (current) marker(ctx, toPx(current.point), 'ring', css);
+}
+function marker(ctx, [x, y], kind, css) {
+  ctx.lineWidth = 3; ctx.strokeStyle = css.getPropertyValue('--bg');
+  ctx.fillStyle = css.getPropertyValue('--ink');
+  ctx.beginPath();
+  if (kind === 'ring') { ctx.arc(x, y, 10, 0, 6.2832); ctx.stroke(); ctx.lineWidth = 2; ctx.strokeStyle = css.getPropertyValue('--ink'); ctx.beginPath(); ctx.arc(x, y, 10, 0, 6.2832); ctx.stroke(); }
+  else { ctx.moveTo(x, y-9); ctx.lineTo(x+9, y); ctx.lineTo(x, y+9); ctx.lineTo(x-9, y); ctx.closePath(); ctx.stroke(); ctx.fill(); }
+}
+async function loadLatent() {
+  const [info, lat] = await Promise.all([api('/api/info'), api('/api/latent')]);
+  latent = lat;
+  const xs = lat.points.map(p => p[0]), ys = lat.points.map(p => p[1]);
+  const px = (Math.max(...xs) - Math.min(...xs)) * 0.05, py = (Math.max(...ys) - Math.min(...ys)) * 0.05;
+  bounds = {x0: Math.min(...xs)-px, x1: Math.max(...xs)+px, y0: Math.min(...ys)-py, y1: Math.max(...ys)+py};
+  $('modelinfo').textContent = `Encoder 784 → 512 → 256 → (μ, log σ²) · ${info.latent_dim}-D latent · decoder back to 784 pixels · ${info.n_params.toLocaleString()} parameters`;
+  $('projnote').textContent = info.projection === 'pca'
+    ? `The latent space has ${info.latent_dim} dimensions; the plot shows its first two principal components. Clicks decode the matching point in that plane.`
+    : `Each dot is the encoded mean μ of a test image (${info.n_points.toLocaleString()} shown). The ring marks your current input; the diamond marks a clicked point.`;
+  $('legend').innerHTML = COLORS.map((c, i) => `<span><i style="background:${c}"></i>${i}</span>`).join('');
+  drawLatent();
+}
+async function loadManifold() {
+  if (manifold) return;
+  manifold = await api('/api/manifold?n=20');
+  const n = manifold.n, cv = document.createElement('canvas'); cv.width = cv.height = n * 28;
+  const ctx = cv.getContext('2d');
+  manifold.images.forEach((img, k) => {
+    const t = document.createElement('canvas'); t.width = t.height = 28; paint(t, img);
+    ctx.drawImage(t, (k % n) * 28, Math.floor(k / n) * 28);
+  });
+  manifoldCanvas = cv;
+}
+$('manifold').addEventListener('change', async () => { if ($('manifold').checked) await loadManifold(); drawLatent(); });
+$('latent').addEventListener('click', async ev => {
+  const r = $('latent').getBoundingClientRect();
+  const p = fromPx((ev.clientX - r.left) * $('latent').width / r.width, (ev.clientY - r.top) * $('latent').height / r.height);
+  clicked = p; drawLatent();
+  try {
+    const d = await api('/api/decode', {point: p});
+    paint($('decoded'), d.image);
+    $('decodedcap').textContent = `Decoded point (${p[0].toFixed(2)}, ${p[1].toFixed(2)}) — a digit generated from the decoder alone.`;
+  } catch (e) { setStatus(e.message); }
+});
+
+/* ---------- inputs ---------- */
+function buildDigits() {
+  for (let d = 0; d < 10; d++) {
+    const b = document.createElement('button'); b.textContent = d; b.setAttribute('aria-label', `Random test digit ${d}`);
+    b.onclick = () => testImage(`?digit=${d}`); $('digits').appendChild(b);
+  }
+}
+async function testImage(q = '') {
+  try { const t = await api('/api/test_image' + q); reconstruct(t.pixels, t.label); }
+  catch (e) { setStatus(e.message); }
+}
+$('random').onclick = () => testImage();
+$('sample').onchange = () => currentPixels && reconstruct(currentPixels, current && current.label);
+
+// drawing: 280px canvas downsampled to 28x28
+const draw = $('draw'), dctx = draw.getContext('2d');
+function resetDraw() { dctx.fillStyle = '#000'; dctx.fillRect(0, 0, 280, 280); }
+resetDraw();
+let drawing = false, last = null, timer = null;
+function pos(ev) { const r = draw.getBoundingClientRect(); return [(ev.clientX-r.left)*280/r.width, (ev.clientY-r.top)*280/r.height]; }
+draw.addEventListener('pointerdown', ev => { drawing = true; last = pos(ev); draw.setPointerCapture(ev.pointerId); stroke(last, last); });
+draw.addEventListener('pointermove', ev => { if (!drawing) return; const p = pos(ev); stroke(last, p); last = p; });
+draw.addEventListener('pointerup', () => { drawing = false; submitDrawing(); });
+draw.addEventListener('pointercancel', () => { drawing = false; });
+function stroke(a, b) {
+  dctx.strokeStyle = '#fff'; dctx.lineCap = dctx.lineJoin = 'round'; dctx.lineWidth = 22;
+  dctx.beginPath(); dctx.moveTo(a[0], a[1]); dctx.lineTo(b[0], b[1]); dctx.stroke();
+  clearTimeout(timer); timer = setTimeout(submitDrawing, 150);
+}
+function pixelsFrom(source) {
+  const t = document.createElement('canvas'); t.width = t.height = 28;
+  const c = t.getContext('2d', {willReadFrequently: true}); c.imageSmoothingQuality = 'high';
+  c.drawImage(source, 0, 0, 28, 28);
+  const d = c.getImageData(0, 0, 28, 28).data, out = new Array(784);
+  for (let i = 0; i < 784; i++) out[i] = (0.299*d[4*i] + 0.587*d[4*i+1] + 0.114*d[4*i+2]) / 255;
+  return out;
+}
+function submitDrawing() { reconstruct(pixelsFrom(draw), null); }
+$('clear').onclick = () => { resetDraw(); setStatus(''); };
+
+$('file').addEventListener('change', ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    // fit into a 20x20 box centred in 28x28, like MNIST
+    const t = document.createElement('canvas'); t.width = t.height = 28;
+    const c = t.getContext('2d', {willReadFrequently: true});
+    c.fillStyle = '#fff'; c.fillRect(0, 0, 28, 28);
+    const s = 20 / Math.max(img.width, img.height), w = img.width*s, h = img.height*s;
+    c.imageSmoothingQuality = 'high'; c.drawImage(img, (28-w)/2, (28-h)/2, w, h);
+    URL.revokeObjectURL(url);
+    const d = c.getImageData(0, 0, 28, 28).data; let px = new Array(784), sum = 0;
+    for (let i = 0; i < 784; i++) { px[i] = (0.299*d[4*i] + 0.587*d[4*i+1] + 0.114*d[4*i+2]) / 255; sum += px[i]; }
+    if (sum / 784 > 0.5) px = px.map(v => 1 - v);  // dark-on-light -> light-on-dark
+    reconstruct(px, null);
+  };
+  img.onerror = () => setStatus('Could not read that image.');
+  img.src = url; ev.target.value = '';
+});
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawLatent);
+buildDigits();
+loadLatent().then(() => testImage('?digit=7')).catch(e => setStatus(e.message));
+</script>
+</body>
+</html>

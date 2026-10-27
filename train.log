@@ -1,0 +1,21 @@
+epoch  1/20  train 165.29 (rec 160.25 kl 5.04)  test 164.97 (rec 159.88 kl 5.09)  6.8s
+epoch  2/20  train 156.82 (rec 151.14 kl 5.68)  test 156.81 (rec 151.14 kl 5.67)  7.6s
+epoch  3/20  train 153.00 (rec 146.95 kl 6.05)  test 153.21 (rec 147.16 kl 6.04)  7.5s
+epoch  4/20  train 149.69 (rec 143.90 kl 5.79)  test 149.98 (rec 144.20 kl 5.77)  7.5s
+epoch  5/20  train 148.15 (rec 142.23 kl 5.92)  test 148.32 (rec 142.42 kl 5.91)  7.3s
+epoch  6/20  train 146.37 (rec 140.27 kl 6.10)  test 146.87 (rec 140.79 kl 6.08)  7.6s
+epoch  7/20  train 144.89 (rec 138.46 kl 6.43)  test 145.49 (rec 139.06 kl 6.43)  8.5s
+epoch  8/20  train 144.15 (rec 138.06 kl 6.09)  test 144.85 (rec 138.80 kl 6.05)  8.5s
+epoch  9/20  train 143.25 (rec 136.70 kl 6.56)  test 144.14 (rec 137.62 kl 6.53)  8.4s
+epoch 10/20  train 142.92 (rec 136.41 kl 6.51)  test 143.94 (rec 137.47 kl 6.47)  8.2s
+epoch 11/20  train 142.02 (rec 135.63 kl 6.39)  test 143.14 (rec 136.78 kl 6.36)  8.4s
+epoch 12/20  train 141.45 (rec 134.83 kl 6.62)  test 142.69 (rec 136.10 kl 6.59)  8.0s
+epoch 13/20  train 141.27 (rec 134.92 kl 6.35)  test 142.28 (rec 135.98 kl 6.30)  8.4s
+epoch 14/20  train 140.37 (rec 133.82 kl 6.55)  test 141.55 (rec 135.03 kl 6.52)  8.6s
+epoch 15/20  train 140.55 (rec 134.00 kl 6.55)  test 141.86 (rec 135.35 kl 6.51)  8.2s
+epoch 16/20  train 139.42 (rec 132.71 kl 6.71)  test 141.29 (rec 134.60 kl 6.69)  8.4s
+epoch 17/20  train 139.02 (rec 132.41 kl 6.62)  test 140.62 (rec 134.04 kl 6.58)  8.9s
+epoch 18/20  train 138.97 (rec 132.43 kl 6.55)  test 140.31 (rec 133.81 kl 6.50)  8.7s
+epoch 19/20  train 138.41 (rec 131.69 kl 6.73)  test 140.04 (rec 133.36 kl 6.69)  9.8s
+epoch 20/20  train 138.18 (rec 131.33 kl 6.85)  test 139.73 (rec 132.91 kl 6.81)  9.5s
+saved /home/claude/vae-latent-visualizer/backend/weights/vae.pt
